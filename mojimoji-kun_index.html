@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>もじもじ君｜文字数カウンター</title>
+<meta name="description" content="入力したテキストの文字数（空白あり／なし）をリアルタイムにカウントします。" />
+<style>
+  :root{
+    --bg:#fff9e6; --card:#fffdf4; --accent:#e6b800; --text:#111; --border:#e8dcb3; --radius:6px;
+  }
+  html,body{height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;line-height:1.6}
+  *{box-sizing:border-box}
+  a{color:inherit;text-decoration:none}
+  header{position:sticky;top:0;z-index:1100;background:rgba(255,249,230,.82);backdrop-filter:blur(6px);border-bottom:1px solid var(--border)}
+  .header-inner{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 12px;min-height:50px}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:800}
+  .brand-logo{width:32px;height:32px;border-radius:var(--radius);background:linear-gradient(135deg,var(--accent),#ffd84d);display:grid;place-items:center;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  .brand h1{font-size:18px;margin:0}
+  .container{max-width:920px;margin:0 auto;padding:16px 12px}
+  .menu-btn{display:flex;justify-content:center;align-items:center;width:50px;height:50px;cursor:pointer;border:1px solid var(--border);background:#fff4c2;border-radius:var(--radius);position:relative;z-index:1200}
+  .menu-icon{display:block;width:20px;height:2px;background:#111;position:relative}
+  .menu-icon::before,.menu-icon::after{content:"";position:absolute;left:0;right:0;height:2px;background:#111}
+  .menu-icon::before{top:-6px}.menu-icon::after{top:6px}
+  @media (max-width:600px){.header-inner{min-height:48px}.menu-btn{width:48px;height:48px}.menu-icon{width:18px}.menu-icon::before{top:-5px}.menu-icon::after{top:5px}}
+  #backdrop{position:fixed;inset:0;background:rgba(0,0,0,.24);opacity:0;pointer-events:none;transition:opacity .22s ease;z-index:900}
+  #backdrop.show{opacity:1;pointer-events:auto}
+  #sideDrawer{position:fixed;top:0;left:0;height:100%;width:min(78vw,320px);background:var(--card);border-right:1px solid var(--border);box-shadow:0 12px 28px rgba(0,0,0,.18);transform:translateX(-100%);transition:transform .22s ease;padding:20px 16px;z-index:1000}
+  #sideDrawer.open{transform:translateX(0)}
+  #sideDrawer ul{list-style:none;margin:0;padding:0}
+  #sideDrawer li{border-bottom:1px solid var(--border)}
+  #sideDrawer li:last-child{border-bottom:none}
+  #sideDrawer a{display:block;padding:14px 4px;border-radius:4px}
+  .tool{margin-top:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:0 8px 24px rgba(0,0,0,.06)}
+  textarea{width:100%;height:160px;resize:vertical;padding:12px;border:1px solid var(--border);border-radius:var(--radius);background:#fffefa;color:var(--text);font:inherit;line-height:1.8}
+  @media (max-width:600px){textarea{height:170px}}
+  .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;margin-bottom:18px}
+  .btn{border:1px solid #dcb900;background:linear-gradient(180deg,#ffd84d,var(--accent));color:#111;padding:10px 18px;border-radius:var(--radius);cursor:pointer;font-weight:700;box-shadow:0 2px 0 rgba(0,0,0,.15) inset,0 1px 6px rgba(0,0,0,.06)}
+  .btn:active{transform:translateY(1px)}
+  .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .stat{background:#fffdf4;border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px}
+  .stat dt{font-size:.84rem;color:#333;margin:0}
+  .stat dd{margin:4px 0 0;font-weight:800;font-size:clamp(18px,3.5vw,24px)}
+  details.pulldown{margin-top:10px;background:#fffce0;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px}
+  .pulldown summary{list-style:none;position:relative;padding-left:24px;cursor:pointer}
+  .pulldown summary::-webkit-details-marker{display:none}
+  .pulldown summary::before{content:"▶";font-size:1.08em;line-height:1;position:absolute;left:0;top:50%;transform:translateY(-50%) scale(0.93,1)}
+  .pulldown[open] summary::before{content:"▼"}
+  footer{margin:28px 0 10px;text-align:center;color:#666;font-size:.9rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-logo" aria-hidden="true">文</div>
+      <h1>もじもじ君</h1>
+    </div>
+    <button class="menu-btn" id="menuBtn" aria-haspopup="true" aria-controls="sideDrawer" aria-expanded="false" aria-label="メニューを開閉">
+      <span class="menu-icon" aria-hidden="true"></span>
+    </button>
+  </div>
+</header>
+<div id="backdrop" aria-hidden="true"></div>
+<nav id="sideDrawer" aria-label="サイト内メニュー">
+  <ul>
+    <li><a href="#tool">ホーム</a></li>
+    <li><a href="#usage">使い方</a></li>
+    <li><a href="#terms">利用規約</a></li>
+    <li><a href="#disclaimer">免責事項</a></li>
+    <li><a href="#owner">運営者</a></li>
+  </ul>
+</nav>
+
+<main class="container">
+  <section class="tool" id="tool" aria-label="文字数カウンター">
+    <textarea id="text" placeholder="ここにテキストを入力してください。" aria-label="テキストを入力"></textarea>
+    <div class="actions">
+      <button class="btn" id="clearBtn">クリア</button>
+    </div>
+    <dl class="stats" aria-live="polite" aria-atomic="true">
+      <div class="stat"><dt>文字数（空白なし）</dt><dd id="noSpaceCount">0</dd></div>
+      <div class="stat"><dt>文字数（空白あり）</dt><dd id="withSpaceCount">0</dd></div>
+    </dl>
+
+    <details class="pulldown" id="usage">
+      <summary>使い方（プルダウン）</summary>
+      <ul>
+        <li>上のテキスト欄に文章を入力すると、その場でカウントされます。</li>
+        <li>「クリア」で内容を消去できます。</li>
+        <li>「空白なし」はスペース・改行・タブ・全角スペース（　）を除いて数えます。</li>
+      </ul>
+    </details>
+
+    <details class="pulldown" id="faq">
+      <summary>よくある質問（プルダウン）</summary>
+      <ul>
+        <li><strong>絵文字は何文字？</strong> 環境により2文字以上として数えられることがあります。</li>
+        <li><strong>改行は空白？</strong> 「空白なし」では除外します。</li>
+      </ul>
+    </details>
+  </section>
+
+  <section class="tool" id="terms"><h2>利用規約</h2><p>準備中です。</p></section>
+  <section class="tool" id="disclaimer"><h2>免責事項</h2><p>準備中です。</p></section>
+  <section class="tool" id="owner"><h2>運営者</h2><p>準備中です。</p></section>
+  <footer>© 2025 もじもじ君</footer>
+</main>
+
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+  function on(el,ev,fn,opts){ if(el) el.addEventListener(ev,fn,opts||false); }
+
+  var text = $('text');
+  var noEl = $('noSpaceCount');
+  var withEl = $('withSpaceCount');
+  var clearBtn = $('clearBtn');
+  var menuBtn = $('menuBtn');
+  var drawer = $('sideDrawer');
+  var backdrop = $('backdrop');
+
+  function updateCounts(){
+    var v = text && text.value ? text.value : "";
+    if(withEl) withEl.textContent = String(v.length);
+    if(noEl)  noEl.textContent  = String(v.replace(/[\\s\\u3000]/g,'').length);
+  }
+
+  function initCounter(){
+    if(!text) return;
+    ['input','keyup','change','compositionend','paste'].forEach(function(ev){
+      on(text,ev,function(){
+        if(ev==='paste') return setTimeout(updateCounts,0);
+        updateCounts();
+      });
+    });
+    updateCounts();
+  }
+
+  function openDrawer(){
+    if(drawer) drawer.classList.add('open');
+    if(menuBtn) menuBtn.setAttribute('aria-expanded','true');
+    if(backdrop){ backdrop.classList.add('show'); }
+  }
+  function closeDrawer(){
+    if(drawer) drawer.classList.remove('open');
+    if(menuBtn) menuBtn.setAttribute('aria-expanded','false');
+    if(backdrop){ backdrop.classList.remove('show'); }
+  }
+  function initDrawer(){
+    ['click','touchend'].forEach(function(ev){
+      on(menuBtn,ev,function(e){ e.preventDefault(); e.stopPropagation(); drawer && (drawer.classList.contains('open')?closeDrawer():openDrawer()); }, {passive:false});
+      on(backdrop,ev,function(e){ e.preventDefault(); closeDrawer(); }, {passive:false});
+    });
+    on(document,'keydown',function(e){ if(e.key==='Escape') closeDrawer(); });
+    if(drawer) on(drawer,'click',function(e){ var a=e.target.closest('a'); if(a) closeDrawer(); });
+  }
+
+  function initClear(){
+    on(clearBtn,'click',function(){
+      if(!text) return;
+      text.value='';
+      updateCounts();
+      text.focus();
+    });
+  }
+
+  function init(){
+    initCounter();
+    initClear();
+    initDrawer();
+    console.log('[mojimoji] ready');
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+  else init();
+})();
+</script>
+</body>
+</html>
